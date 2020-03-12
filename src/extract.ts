@@ -181,22 +181,46 @@ function extractCargoResult(output: string): BenchmarkResult[] {
     const reExtract = /^test (\w+)\s+\.\.\. bench:\s+([0-9,]+) ns\/iter \((\+\/- [0-9,]+)\)$/;
     const reComma = /,/g;
 
+    // Example:
+    ///  pile_of_agents          time:   [41.233 ms 45.600 ms 50.615 ms]
+    const criterionExtract = /^(\w+)\s*time:\s*\[\w+\.\w+\s\w+\s([0-9.]+)\s(\w+).*$/;
+
     for (const line of lines) {
         const m = line.match(reExtract);
-        if (m === null) {
+
+        // Match normal rust benches
+        if (m !== null) {
+            const name = m[1];
+            const value = parseInt(m[2].replace(reComma, ''), 10);
+            const range = m[3];
+
+            ret.push({
+                name,
+                value,
+                range,
+                unit: 'ns/iter',
+            });
+
+            // Break out to not match criterion as well
             continue;
         }
 
-        const name = m[1];
-        const value = parseInt(m[2].replace(reComma, ''), 10);
-        const range = m[3];
+        // Match the criterion bench output
+        const c = line.match(criterionExtract);
 
-        ret.push({
-            name,
-            value,
-            range,
-            unit: 'ns/iter',
-        });
+        if (c !== null) {
+            const name = c[1];
+            const value = parseInt(c[2].replace(reComma, ''), 10) / 1000;
+            const unit = c[3] + '/iter';
+
+            ret.push({
+                name,
+                value,
+                unit,
+            });
+
+            continue;
+        }
     }
 
     return ret;
